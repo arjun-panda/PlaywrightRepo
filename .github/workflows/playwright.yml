@@ -1,0 +1,75 @@
+
+name: Playwright CI
+
+on:
+  push:
+    branches: [main, master]
+
+  pull_request:
+    branches: [main, master]
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# jobs: Defines the tasks GitHub needs to execute.
+# playwright-tests: Unique identifier for this job.
+# name: Display name in GitHub.
+# runs-on: Creates a fresh Ubuntu virtual machine.
+# timeout-minutes: Stops execution if the job exceeds 30 minutes.
+jobs:
+  playwright-tests:
+    name: Run Playwright Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    # vars reads GitHub repository variables, while secrets reads encrypted GitHub secrets.
+    env:
+      CI: true
+      BASE_URL: ${{ vars.BASE_URL || 'https://www.saucedemo.com' }}
+      USERNAME: ${{ secrets.UI_USERNAME || 'standard_user' }}
+      PASSWORD: ${{ secrets.UI_PASSWORD || 'secret_sauce' }}
+      API_BASE_URL: ${{ vars.API_BASE_URL || 'https://jsonplaceholder.typicode.com' }}
+
+    steps:
+      # Step 1: Download repository code
+      - name: Checkout repository
+        uses: actions/checkout@v4 
+        # • The official GitHub-maintained action that clones your repository (at the exact commit or pull request that triggered the workflow) into the runner's workspace directory.
+        # • @v4 — Pins the action to major version 4 so your CI pipeline remains stable and does not break unexpectedly if future major updates introduce breaking changes.
+
+      # Step 2: Install Node.js
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # Step 3: Install project dependencies
+      - name: Install dependencies
+        run: npm install
+
+      # Step 4: Install Playwright browsers
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps
+
+      # Step 5: Check TypeScript errors
+    #   Runs the TypeScript compiler to identify type errors before executing tests.
+      - name: Type check
+        run: npm run typecheck
+
+      # Step 6: Execute tests
+      - name: Run Playwright tests
+        run: npm test
+
+      # Step 7: Upload reports even if tests fail
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-and-results
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: warn
+          retention-days: 14
