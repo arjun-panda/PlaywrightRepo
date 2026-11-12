@@ -3,7 +3,7 @@ name: Playwright Smoke Tests
 
 on:
   schedule:
-    - cron: '45 16 * * 1-5' # 10:30 PM IST
+    - cron: '*/5 * * * *' 
   workflow_dispatch: 
 
 permissions:
