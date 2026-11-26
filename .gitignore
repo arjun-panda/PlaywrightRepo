@@ -3,4 +3,7 @@ playwright-report/
 test-results/
 playwright/.auth/
 .env
+.env.*
+!.env.credentials.example
+!.env.urls.example
 .DS_Store

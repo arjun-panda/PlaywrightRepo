@@ -41,18 +41,36 @@ A runnable starter framework using **Playwright + TypeScript**, with UI and API 
 
    On Linux CI machines, use `npx playwright install --with-deps`.
 
-5. Copy `.env.example` to `.env` and adjust values if needed.
+5. Configure the environment files in the project root. They are ignored by
+   Git, so create them locally if they are not present:
 
-   Default demo credentials are for the public SauceDemo practice site:
-   - Username: `standard_user`
-   - Password: `secret_sauce`
+   - `.env.credentials`: account usernames and passwords, once for all targets.
+     It needs `STANDARD_USERNAME`/`STANDARD_PASSWORD`,
+     `PROBLEM_USERNAME`/`PROBLEM_PASSWORD`,
+     `PERFORMANCE_USERNAME`/`PERFORMANCE_PASSWORD`,
+     `ERROR_USERNAME`/`ERROR_PASSWORD`, `VISUAL_USERNAME`/`VISUAL_PASSWORD`,
+     and `LOCKED_OUT_USERNAME`/`LOCKED_OUT_PASSWORD`.
+   - `.env.staging`, `.env.dev`, `.env.prod`: each contains `BASE_URL` and
+     `API_BASE_URL` for that target.
+
+   The current local files use the public SauceDemo and JSONPlaceholder
+   endpoints. Replace those URLs with your actual endpoints when the targets
+   differ. Keep real credentials out of Git.
 
 ## Run tests
 
-Run the full cross-browser suite:
+Run the full suite (defaults to staging if `TEST_ENV` is not set):
 
 ```bash
 npm test
+```
+
+Run the full suite against a specific target without setting `TEST_ENV` manually:
+
+```bash
+npm run test:dev
+npm run test:staging
+npm run test:prod
 ```
 
 Run Chromium UI and API tests:
@@ -79,6 +97,29 @@ Run smoke tests:
 npm run test:smoke
 ```
 
+### Select a test environment manually
+
+The target-specific npm scripts above set `TEST_ENV` automatically. To run a
+custom Playwright command, set `TEST_ENV` to `staging`, `dev`, or `prod`. The
+selected `.env.<name>` file must define `BASE_URL` and `API_BASE_URL`. All test
+account credentials live once in `.env.credentials` and are shared across
+targets. Missing credentials or URLs stop test startup. Values supplied
+directly by the shell or CI take precedence over values in the files. Use
+protected CI secrets for credentials rather than committing them.
+
+PowerShell:
+
+```powershell
+$env:TEST_ENV = "staging"
+npm test
+Remove-Item Env:TEST_ENV
+```
+
+Replace `staging` with `dev` or `prod` to target the corresponding file. On
+production, run only tests explicitly approved for that environment; avoid
+tests that create, modify, or delete real customer data. Store CI credentials
+as protected secrets rather than in the repository.
+
 Type-check the project:
 
 ```bash
@@ -98,7 +139,6 @@ playwright-enterprise-framework/
 ├── playwright.config.ts
 ├── package.json
 ├── tsconfig.json
-├── .env.example
 ├── src/
 │   ├── config/env.ts
 │   ├── fixtures/test.fixture.ts
@@ -116,6 +156,9 @@ playwright-enterprise-framework/
 │       └── posts.spec.ts
 └── playwright/.auth/
 ```
+
+The local, Git-ignored environment files are `.env.credentials`,
+`.env.staging`, `.env.dev`, and `.env.prod`.
 
 ## Framework design notes
 
@@ -143,7 +186,9 @@ Add new fixtures there when a shared resource or helper has a clear lifecycle.
 
 The API examples use JSONPlaceholder as a public demonstration API. It is not
 a production backend, and its POST endpoint simulates creation rather than
-persisting data.
+persisting data. The current API examples do not use authentication credentials.
+If the target API requires authentication, keep its token in
+`.env.credentials` and pass it through the API client rather than hardcoding it.
 
 ### Before using this for a real application
 

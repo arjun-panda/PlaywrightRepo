@@ -1,16 +1,12 @@
 
 import { test as setup, expect } from '@playwright/test';
-import { env } from '../src/config/env';
+import { users } from '../src/config/users';
 
 setup('authenticate standard user', async ({ page }) => {
-
   await page.goto('/');
 
-  // Print username only. Never print the password.
-  console.log('Login username:', env.username);
-
-  await page.getByPlaceholder('Username').fill(env.username);
-  await page.getByPlaceholder('Password').fill(env.password);
+  await page.getByPlaceholder('Username').fill(users.standard.username);
+  await page.getByPlaceholder('Password').fill(users.standard.password);
 
   await page.getByRole('button', {
     name: 'Login',

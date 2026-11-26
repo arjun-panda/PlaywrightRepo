@@ -1,27 +1,14 @@
 import { test, expect } from '../../src/fixtures/test.fixture';
 
-test('Two different users can have separate sessions',
-  async ({ userSessions }) => {
+test('Two different users can have separate sessions', async ({ userSessions }) => {
+  const user1 = await userSessions.create('standard');
+  const user2 = await userSessions.create('performance');
 
-    // Login as standard user
-    const user1 = await userSessions.create('standard');
+  await user1.inventoryPage.expectLoaded();
+  await user2.inventoryPage.expectLoaded();
 
-    // Login as performance user
-    const user2 = await userSessions.create('performance');
+  await user1.inventoryPage.addProductToCart('Sauce Labs Backpack');
 
-    // Verify User 1 is logged in
-    await expect(user1.page).toHaveURL(/inventory.html/);
-
-    // Verify User 2 is logged in
-    await expect(user2.page).toHaveURL(/inventory.html/);
-
-    // Verify both have their own pages
-    await expect(
-      user1.page.getByText('Products', { exact: true })
-    ).toBeVisible();
-
-    await expect(
-      user2.page.getByText('Products', { exact: true })
-    ).toBeVisible();
-  }
-);
+  await expect(user1.inventoryPage.cartBadge).toHaveText('1');
+  await expect(user2.inventoryPage.cartBadge).toHaveCount(0);
+});

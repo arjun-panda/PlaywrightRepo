@@ -1,4 +1,3 @@
-
 import { test as base, expect } from '@playwright/test';
 import type { BrowserContext, Page } from '@playwright/test';
 
@@ -9,18 +8,18 @@ import { CartPage } from '../pages/CartPage';
 import { users, type UserKey } from '../config/users';
 import { env } from '../config/env';
 
-// A single logged-in user's session
 type UserSession = {
   page: Page;
   context: BrowserContext;
+  loginPage: LoginPage;
+  inventoryPage: InventoryPage;
+  cartPage: CartPage;
 };
 
-// A fixture that can create sessions for different users
 type UserSessions = {
   create: (userKey: UserKey) => Promise<UserSession>;
 };
 
-// All custom fixtures used by the framework
 type AppFixtures = {
   loginPage: LoginPage;
   inventoryPage: InventoryPage;
@@ -28,64 +27,112 @@ type AppFixtures = {
   userSessions: UserSessions;
 };
 
-export const test = base.extend<AppFixtures>({
+// Worker-scoped storage: caches completed states AND tracks in-progress logins
+type StorageState = Awaited<ReturnType<BrowserContext['storageState']>>;
 
-  // Existing Page Object fixtures
+type WorkerFixtures = {
+  authCache: {
+    states: Map<UserKey, StorageState>;
+    inFlight: Map<UserKey, Promise<StorageState>>;
+  };
+};
+
+export const test = base.extend<AppFixtures, WorkerFixtures>({
   loginPage: async ({ page }, use) => {
     await use(new LoginPage(page));
   },
-
   inventoryPage: async ({ page }, use) => {
     await use(new InventoryPage(page));
   },
-
   cartPage: async ({ page }, use) => {
     await use(new CartPage(page));
   },
 
-  // Multi-user session fixture
-  userSessions: async ({ browser }, use) => {
+  // 1. Lightweight Worker Fixture: initializes empty caches in 0ms
+  authCache: [
+    async ({}, use) => {
+      await use({
+        states: new Map<UserKey, StorageState>(),
+        inFlight: new Map<UserKey, Promise<StorageState>>(),
+      });
+    },
+    { scope: 'worker' },
+  ],
 
-    // Keep track of every context created during this test
+  // 2. Test Fixture: logs in ONLY the specific users requested by the test
+  userSessions: async ({ browser, authCache }, use) => {
     const contexts: BrowserContext[] = [];
 
-    // Create a logged-in session for the requested user
-    const create = async (
+    // Helper that logs in once per user per worker, even if called concurrently
+    const getOrCreateStorageState = async (
       userKey: UserKey
-    ): Promise<UserSession> => {
+    ): Promise<StorageState> => {
+      // Return immediately if already cached in this worker
+      const cached = authCache.states.get(userKey);
+      if (cached) return cached;
 
-      // Get credentials from users.ts
-      const selectedUser = users[userKey];
+      // Wait for existing login if another call is already logging this user in
+      const existingPromise = authCache.inFlight.get(userKey);
+      if (existingPromise) return existingPromise;
 
-      // Create an isolated browser context
-      const context = await browser.newContext({baseURL: env.baseURL});
+      // Start a new UI login and store its Promise in the inFlight lock
+      const loginPromise = (async () => {
+        const setupContext = await browser.newContext({ baseURL: env.baseURL });
+        try {
+          const setupPage = await setupContext.newPage();
+          const loginPage = new LoginPage(setupPage);
+          const user = users[userKey];
 
-      // Track it so we can close it later
-      contexts.push(context);
+          await loginPage.login(user.username, user.password);
+          await expect(setupPage).toHaveURL(/inventory\.html/, {
+            timeout: 30_000,
+          });
 
-      // Create a separate page for this user
-      const page = await context.newPage();
+          const state = await setupContext.storageState();
+          authCache.states.set(userKey, state);
+          return state;
+        } finally {
+          await setupContext.close();
+          authCache.inFlight.delete(userKey); // Release lock
+        }
+      })();
 
-      // Create the LoginPage object
-      const loginPage = new LoginPage(page);
-
-      // Login using the selected user's credentials
-      await loginPage.login(
-        selectedUser.username,
-        selectedUser.password
-      );
-
-      // Return this user's logged-in session
-      return { page, context };
+      authCache.inFlight.set(userKey, loginPromise);
+      return loginPromise;
     };
 
-    // Expose the create function to test cases
-    await use({ create });
+    const create = async (userKey: UserKey): Promise<UserSession> => {
+      // Fetch cached state or perform lazy login on demand
+      const storageState = await getOrCreateStorageState(userKey);
 
-    // Cleanup: close every context created by this fixture
-    await Promise.all(
-      contexts.map(context => context.close())
-    );
+      const context = await browser.newContext({
+        baseURL: env.baseURL,
+        storageState,
+      });
+
+      contexts.push(context);
+      const page = await context.newPage();
+      const loginPage = new LoginPage(page);
+      const inventoryPage = new InventoryPage(page);
+      const cartPage = new CartPage(page);
+
+      await page.goto('/inventory.html');
+      await inventoryPage.expectLoaded();
+
+      return {
+        page,
+        context,
+        loginPage,
+        inventoryPage,
+        cartPage,
+      };
+    };
+
+    try {
+      await use({ create });
+    } finally {
+      await Promise.all(contexts.map((context) => context.close()));
+    }
   },
 });
 

@@ -1,5 +1,5 @@
 import { defineConfig, devices } from '@playwright/test';
-import 'dotenv/config';
+import { env } from './src/config/env';
 
 const isCI = Boolean(process.env.CI);
 
@@ -19,7 +19,7 @@ export default defineConfig({
     ['html', { outputFolder: 'playwright-report', open: 'never' }],
   ],
   use: {
-    baseURL: process.env.BASE_URL || 'https://www.saucedemo.com',
+    baseURL: env.baseURL,
     headless: true,
     actionTimeout: 10_000,
     navigationTimeout: 15_000,

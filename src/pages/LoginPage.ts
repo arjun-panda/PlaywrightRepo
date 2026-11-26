@@ -28,4 +28,8 @@ export class LoginPage {
   async expectLoginError(message: string): Promise<void> {
     await expect(this.errorMessage).toContainText(message);
   }
+
+  getErrorMessage() {
+    return this.page.locator('[data-test="error"]');
+  }
 }
