@@ -1,11 +1,8 @@
 import dotenv from 'dotenv';
 
 const supportedEnvironments = ['staging', 'dev', 'prod'] as const;
-const selectedEnvironment = process.env.TEST_ENV?.trim().toLowerCase();
-
-if (!selectedEnvironment) {
-  throw new Error('Set TEST_ENV to staging, dev, or prod before running tests.');
-}
+const selectedEnvironment =
+  process.env.TEST_ENV?.trim().toLowerCase() || 'staging';
 
 if (
   !supportedEnvironments.some((environment) => environment === selectedEnvironment)
