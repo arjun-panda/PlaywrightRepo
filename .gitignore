@@ -6,4 +6,5 @@ playwright/.auth/
 .env.*
 !.env.credentials.example
 !.env.urls.example
+.credentials.json
 .DS_Store

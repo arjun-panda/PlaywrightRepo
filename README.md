@@ -41,15 +41,12 @@ A runnable starter framework using **Playwright + TypeScript**, with UI and API 
 
    On Linux CI machines, use `npx playwright install --with-deps`.
 
-5. Configure the environment files in the project root. They are ignored by
-   Git, so create them locally if they are not present:
+5. Configure the files in the project root. They are ignored by Git, so create
+   them locally if they are not present:
 
-   - `.env.credentials`: account usernames and passwords, once for all targets.
-     It needs `STANDARD_USERNAME`/`STANDARD_PASSWORD`,
-     `PROBLEM_USERNAME`/`PROBLEM_PASSWORD`,
-     `PERFORMANCE_USERNAME`/`PERFORMANCE_PASSWORD`,
-     `ERROR_USERNAME`/`ERROR_PASSWORD`, `VISUAL_USERNAME`/`VISUAL_PASSWORD`,
-     and `LOCKED_OUT_USERNAME`/`LOCKED_OUT_PASSWORD`.
+   - Copy `.credentials.example.json` to `.credentials.json`. Add accounts as
+     objects with `username` and `password` fields. The object key becomes the
+     user's key in `users`; adding an account does not require editing `env.ts`.
    - `.env.staging`, `.env.dev`, `.env.prod`: each contains `BASE_URL` and
      `API_BASE_URL` for that target.
 
@@ -102,10 +99,11 @@ npm run test:smoke
 The target-specific npm scripts above set `TEST_ENV` automatically. To run a
 custom Playwright command, set `TEST_ENV` to `staging`, `dev`, or `prod`. The
 selected `.env.<name>` file must define `BASE_URL` and `API_BASE_URL`. All test
-account credentials live once in `.env.credentials` and are shared across
-targets. Missing credentials or URLs stop test startup. Values supplied
-directly by the shell or CI take precedence over values in the files. Use
-protected CI secrets for credentials rather than committing them.
+account credentials live once in `.credentials.json` and are shared across
+targets. Missing credentials or URLs stop test startup. Shell and CI values
+take precedence; for a user key such as `lockedOut`, set `LOCKED_OUT_USERNAME`
+and `LOCKED_OUT_PASSWORD`. Use protected CI secrets rather than committing
+credentials.
 
 PowerShell:
 
@@ -157,7 +155,7 @@ playwright-enterprise-framework/
 └── playwright/.auth/
 ```
 
-The local, Git-ignored environment files are `.env.credentials`,
+The local, Git-ignored configuration files are `.credentials.json`,
 `.env.staging`, `.env.dev`, and `.env.prod`.
 
 ## Framework design notes
@@ -187,8 +185,9 @@ Add new fixtures there when a shared resource or helper has a clear lifecycle.
 The API examples use JSONPlaceholder as a public demonstration API. It is not
 a production backend, and its POST endpoint simulates creation rather than
 persisting data. The current API examples do not use authentication credentials.
-If the target API requires authentication, keep its token in
-`.env.credentials` and pass it through the API client rather than hardcoding it.
+If the target API requires authentication, keep its token in the selected
+`.env.<name>` file or a protected CI secret, and pass it through the API client
+rather than hardcoding it.
 
 ### Before using this for a real application
 
@@ -204,7 +203,8 @@ If the target API requires authentication, keep its token in
 ## Troubleshooting
 
 - If browser binaries are missing: `npx playwright install`.
-- If login fails, verify the demo site is reachable and `.env` credentials.
+- If login fails, verify the demo site is reachable and credentials in
+  `.credentials.json`.
 - If a browser project fails but Chromium passes, check browser-specific support
   or whether the target site is temporarily unavailable.
 - If TypeScript reports errors, run `npm run typecheck`.

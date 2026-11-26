@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import dotenv from 'dotenv';
 
 const supportedEnvironments = ['staging', 'dev', 'prod'] as const;
@@ -13,9 +14,8 @@ if (
 }
 
 const inheritedEnvironment = { ...process.env };
-const credentialsFile = '.env.credentials';
+const credentialsFile = '.credentials.json';
 const envFile = `.env.${selectedEnvironment}`;
-dotenv.config({ path: credentialsFile, override: true });
 const dotenvResult = dotenv.config({ path: envFile });
 
 if (dotenvResult.error) {
@@ -35,35 +35,58 @@ const getRequiredValue = (name: string, sourceFile = envFile): string => {
   return value;
 };
 
-const getCredential = (name: string): string =>
-  getRequiredValue(name, credentialsFile);
-
-const users = {
-  standard: {
-    username: getCredential('STANDARD_USERNAME'),
-    password: getCredential('STANDARD_PASSWORD'),
-  },
-  problem: {
-    username: getCredential('PROBLEM_USERNAME'),
-    password: getCredential('PROBLEM_PASSWORD'),
-  },
-  performance: {
-    username: getCredential('PERFORMANCE_USERNAME'),
-    password: getCredential('PERFORMANCE_PASSWORD'),
-  },
-  error: {
-    username: getCredential('ERROR_USERNAME'),
-    password: getCredential('ERROR_PASSWORD'),
-  },
-  visual: {
-    username: getCredential('VISUAL_USERNAME'),
-    password: getCredential('VISUAL_PASSWORD'),
-  },
-  lockedOut: {
-    username: getCredential('LOCKED_OUT_USERNAME'),
-    password: getCredential('LOCKED_OUT_PASSWORD'),
-  },
+type UserCredentials = {
+  username: string;
+  password: string;
 };
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const parsedCredentials: unknown = JSON.parse(
+  readFileSync(credentialsFile, 'utf8')
+);
+
+if (
+  !isRecord(parsedCredentials) ||
+  Object.keys(parsedCredentials).length === 0
+) {
+  throw new Error(`${credentialsFile} must contain a non-empty object of users.`);
+}
+
+const getCredential = (name: string, fallback: string): string => {
+  const value = getValue(name) ?? fallback;
+  if (!value) {
+    throw new Error(
+      `Missing ${name}; set it in ${credentialsFile} or provide it through the environment.`
+    );
+  }
+  return value;
+};
+
+const users: Record<string, UserCredentials> = {};
+
+for (const [userKey, value] of Object.entries(parsedCredentials)) {
+  if (
+    !/^[a-z][A-Za-z0-9]*$/.test(userKey) ||
+    !isRecord(value) ||
+    typeof value.username !== 'string' ||
+    typeof value.password !== 'string'
+  ) {
+    throw new Error(
+      `Invalid user "${userKey}" in ${credentialsFile}; each user needs a lower-camel-case name and string username/password values.`
+    );
+  }
+
+  const environmentPrefix = userKey
+    .replace(/[A-Z]/g, (letter) => `_${letter}`)
+    .toUpperCase();
+
+  users[userKey] = {
+    username: getCredential(`${environmentPrefix}_USERNAME`, value.username),
+    password: getCredential(`${environmentPrefix}_PASSWORD`, value.password),
+  };
+}
 
 export const env = {
   target: selectedEnvironment,
